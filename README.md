@@ -64,9 +64,4 @@ compute-heavy for Solana's per-instruction CU budget. SolMesh instead uses the n
 introspection — see `programs/solmesh/src/crypto/ed25519.rs`.
 
 ## Status / caveats
-This repo was generated as a complete, internally consistent scaffold. Before `anchor
-test` goes green you must: (1) pin `mpl-core` to the version matching the Core program
-on your cluster and adjust the CPI builder calls if its plugin API differs; (2) confirm
-the Ed25519 instruction byte layout via the M3 golden-bytes test (the self-contained
-`u16::MAX` index assumption in `ed25519.rs`); (3) clone the real Core program id into
-the local validator (`Anchor.toml` + `tests/helpers.ts`).
+
