@@ -1,0 +1,33 @@
+use anchor_lang::prelude::*;
+
+#[error_code]
+pub enum SolMeshError {
+    #[msg("Protocol is paused")] Paused,
+    #[msg("Node is inactive")] NodeInactive,
+    #[msg("Unauthorized")] Unauthorized,
+    #[msg("Amount must be greater than zero")] AmountZero,
+    #[msg("Deposit insufficient")] InsufficientDeposit,
+    #[msg("Owed exceeds deposited")] OwedExceedsDeposit,
+    #[msg("Owed must not decrease")] OwedDecreased,
+    #[msg("Stale nonce")] StaleNonce,
+    #[msg("Nonce not increasing")] NonceNotIncreasing,
+    #[msg("Session not open")] SessionNotOpen,
+    #[msg("Session not closing")] SessionNotClosing,
+    #[msg("Challenge window still open")] ChallengeWindowOpen,
+    #[msg("Challenge window closed")] ChallengeWindowClosed,
+    #[msg("Ed25519 instruction missing")] Ed25519IxMissing,
+    #[msg("Ed25519 wrong program id")] Ed25519BadProgram,
+    #[msg("Ed25519 pubkey mismatch")] Ed25519PubkeyMismatch,
+    #[msg("Ed25519 message mismatch")] Ed25519MessageMismatch,
+    #[msg("Ed25519 cross-instruction reference not allowed")] Ed25519CrossIndex,
+    #[msg("Signer mismatch")] SignerMismatch,
+    #[msg("Domain mismatch")] DomainMismatch,
+    #[msg("Session expired")] SessionExpired,
+    #[msg("Session not yet expired")] SessionNotExpired,
+    #[msg("Session has usage; cannot cancel")] SessionHasUsage,
+    #[msg("Fee too high")] FeeTooHigh,
+    #[msg("Duration out of bounds")] BadDuration,
+    #[msg("String too long")] StringTooLong,
+    #[msg("Math overflow")] MathOverflow,
+    #[msg("Wrong escrow type for this instruction (SOL vs SPL mismatch)")] SplUnsupported,
+}
