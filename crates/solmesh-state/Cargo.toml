@@ -1,0 +1,14 @@
+[package]
+name = "solmesh-state"
+version = "0.1.0"
+edition = "2021"
+description = "Shared canonical StateUpdate message for SolMesh (program + client)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+borsh = { version = "1.5.1", features = ["derive"] }
+
+[features]
+default = []
