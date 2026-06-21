@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = [
+    "programs/*",
+    "crates/*",
+]
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
