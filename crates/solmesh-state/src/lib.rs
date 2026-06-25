@@ -27,15 +27,73 @@ impl StateUpdate {
 
     /// Deterministic message bytes that get signed.
     pub fn to_message_bytes(&self) -> Vec<u8> {
-        borsh::to_vec(self).expect("borsh serialize StateUpdate")
+        let mut data = vec![];
+        BorshSerialize::serialize(self, &mut data).expect("borsh serialize StateUpdate");
+        data
     }
 
     pub fn from_message_bytes(data: &[u8]) -> std::io::Result<Self> {
-        StateUpdate::try_from_slice(data)
+        BorshDeserialize::deserialize(&mut &data[..])
     }
 
     pub fn has_valid_domain(&self) -> bool {
         self.domain == STATE_DOMAIN
+    }
+}
+
+#[cfg(feature = "idl-build")]
+impl anchor_lang::idl::build::IdlBuild for StateUpdate {
+    fn create_type() -> Option<anchor_lang::idl::types::IdlTypeDef> {
+        use anchor_lang::idl::types::{
+            IdlArrayLen, IdlDefinedFields, IdlField, IdlType, IdlTypeDef, IdlTypeDefTy,
+        };
+        Some(IdlTypeDef {
+            name: "StateUpdate".into(),
+            docs: vec![],
+            serialization: Default::default(),
+            repr: None,
+            generics: vec![],
+            ty: IdlTypeDefTy::Struct {
+                fields: Some(IdlDefinedFields::Named(vec![
+                    IdlField {
+                        name: "domain".into(),
+                        docs: vec![],
+                        ty: IdlType::Array(Box::new(IdlType::U8), IdlArrayLen::Value(8)),
+                    },
+                    IdlField {
+                        name: "session".into(),
+                        docs: vec![],
+                        ty: IdlType::Array(Box::new(IdlType::U8), IdlArrayLen::Value(32)),
+                    },
+                    IdlField {
+                        name: "nonce".into(),
+                        docs: vec![],
+                        ty: IdlType::U64,
+                    },
+                    IdlField {
+                        name: "owed_to_provider".into(),
+                        docs: vec![],
+                        ty: IdlType::U64,
+                    },
+                    IdlField {
+                        name: "units_consumed".into(),
+                        docs: vec![],
+                        ty: IdlType::U64,
+                    },
+                    IdlField {
+                        name: "timestamp".into(),
+                        docs: vec![],
+                        ty: IdlType::I64,
+                    },
+                ])),
+            },
+        })
+    }
+
+    fn insert_types(types: &mut std::collections::BTreeMap<String, anchor_lang::idl::types::IdlTypeDef>) {
+        if let Some(def) = Self::create_type() {
+            types.insert(def.name.clone(), def);
+        }
     }
 }
 

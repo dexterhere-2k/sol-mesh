@@ -14,7 +14,7 @@ pub const FEE_VAULT_SEED: &[u8] = b"fee_vault";
 pub const MAX_FEE_BPS: u16 = 1_000;          // 10%
 pub const BPS_DENOMINATOR: u64 = 10_000;
 pub const MAX_STRING: usize = 64;
-pub const MIN_DURATION_SECS: i64 = 60;
+pub const MIN_DURATION_SECS: i64 = 1;
 pub const MAX_DURATION_SECS: i64 = 60 * 60 * 24 * 30; // 30 days
 
 // Reputation tuning
