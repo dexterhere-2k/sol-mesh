@@ -8,7 +8,13 @@ description = "Shared canonical StateUpdate message for SolMesh (program + clien
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-borsh = { version = "1.5.1", features = ["derive"] }
+borsh = "0.10.4"
+borsh-derive = "0.10.4"
 
 [features]
 default = []
+idl-build = ["dep:anchor-lang", "anchor-lang/idl-build"]
+
+[dependencies.anchor-lang]
+version = "0.32"
+optional = true

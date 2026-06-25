@@ -14,11 +14,11 @@ cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
-idl-build = ["anchor-lang/idl-build"]
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "solmesh-state/idl-build"]
 
 [dependencies]
-anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }
-anchor-spl = "0.30.1"
+anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
+anchor-spl = "0.32.1"
 solmesh-state = { path = "../../crates/solmesh-state" }
-# Pin mpl-core to the version matching the Core program deployed on your cluster.
-mpl-core = { version = "0.8.0", features = ["anchor"] }
+mpl-core = { version = "0.12.1", default-features = false, features = ["anchor"] }
+getrandom = { version = "0.2", features = ["custom"] }
