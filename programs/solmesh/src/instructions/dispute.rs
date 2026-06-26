@@ -33,6 +33,7 @@ pub struct UnilateralClose<'info> {
 /// Start a unilateral close with the best co-signed state the caller holds.
 pub fn initiate_handler(ctx: Context<UnilateralClose>, state: StateUpdate) -> Result<()> {
     let caller = ctx.accounts.caller.key();
+    let session_key = ctx.accounts.session.key();
     require!(
         caller == ctx.accounts.session.provider || caller == ctx.accounts.session.consumer,
         SolMeshError::Unauthorized
@@ -41,7 +42,7 @@ pub fn initiate_handler(ctx: Context<UnilateralClose>, state: StateUpdate) -> Re
         let s = &ctx.accounts.session;
         require!(s.status == SessionStatus::Open, SolMeshError::SessionNotOpen);
         require!(state.nonce > s.last_nonce, SolMeshError::StaleNonce);
-        verify_cosigned_state(s, &state, &ctx.accounts.instructions_sysvar.to_account_info())?;
+        verify_cosigned_state(s, &session_key, &state, &ctx.accounts.instructions_sysvar.to_account_info())?;
     }
     let now = Clock::get()?.unix_timestamp;
     let s = &mut ctx.accounts.session;
@@ -56,12 +57,13 @@ pub fn initiate_handler(ctx: Context<UnilateralClose>, state: StateUpdate) -> Re
 /// Counterparty posts a higher-nonce co-signed state during the window.
 pub fn challenge_handler(ctx: Context<UnilateralClose>, state: StateUpdate) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
+    let session_key = ctx.accounts.session.key();
     {
         let s = &ctx.accounts.session;
         require!(s.status == SessionStatus::Closing, SolMeshError::SessionNotClosing);
         require!(now <= s.challenge_deadline, SolMeshError::ChallengeWindowClosed);
         require!(state.nonce > s.last_nonce, SolMeshError::NonceNotIncreasing);
-        verify_cosigned_state(s, &state, &ctx.accounts.instructions_sysvar.to_account_info())?;
+        verify_cosigned_state(s, &session_key, &state, &ctx.accounts.instructions_sysvar.to_account_info())?;
     }
     let s = &mut ctx.accounts.session;
     s.last_nonce = state.nonce;
@@ -129,18 +131,13 @@ pub fn finalize_handler(ctx: Context<FinalizeClose>) -> Result<()> {
     let node_asset = ctx.accounts.node.asset;
     let node_bump = ctx.accounts.node.bump;
     let new_units = ctx.accounts.node.total_units.checked_add(units).ok_or(SolMeshError::MathOverflow)?;
-    // Saturating is intended for the bounded reputation score (see SPEC §7).
     let new_rep = ctx.accounts.node.reputation.saturating_add(reputation_reward(units));
     let (cap, geo) = (ctx.accounts.node.capacity, ctx.accounts.node.geo.clone());
-    let seeds: &[&[&[u8]]] = &[&[NODE_SEED, node_asset.as_ref(), &[node_bump]]];
-    set_reputation(
-        &ctx.accounts.mpl_core_program.to_account_info(),
-        &ctx.accounts.asset.to_account_info(),
-        &ctx.accounts.payer.to_account_info(),
-        &ctx.accounts.node.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        cap, geo, new_rep, new_units, seeds,
-    )?;
+
+    // ponytail: mpl-core 0.12.1 UpdatePluginV1 CPI causes lamport imbalance.
+    // Save to Node account only; Core asset sync deferred.
+    let _ = (cap, geo, node_bump, node_asset);
+
 
     {
         let node = &mut ctx.accounts.node;

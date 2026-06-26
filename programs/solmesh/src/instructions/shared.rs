@@ -8,13 +8,14 @@ use crate::state::Session;
 /// signatures exist in the transaction. Returns the parsed StateUpdate.
 pub fn verify_cosigned_state(
     session: &Session,
+    session_key: &Pubkey,
     state: &StateUpdate,
     ix_sysvar: &AccountInfo,
 ) -> Result<()> {
     require!(state.has_valid_domain(), SolMeshError::DomainMismatch);
     require!(state.domain == STATE_DOMAIN, SolMeshError::DomainMismatch);
     // Binds this state to exactly this session escrow.
-    require!(state.session == session.key().to_bytes(), SolMeshError::SignerMismatch);
+    require!(state.session == session_key.to_bytes(), SolMeshError::SignerMismatch);
     require!(state.owed_to_provider <= session.deposited, SolMeshError::OwedExceedsDeposit);
     require!(state.owed_to_provider >= session.settled_to_provider, SolMeshError::OwedDecreased);
 

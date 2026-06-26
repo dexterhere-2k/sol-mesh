@@ -13,18 +13,19 @@
 //! in @solana/web3.js produces. Self-contained instructions use the u16::MAX sentinel
 //! for every `*_instruction_index`. Anything else is rejected (Ed25519CrossIndex).
 
+use crate::errors::SolMeshError;
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::ed25519_program;
 use anchor_lang::solana_program::sysvar::instructions::{
     load_current_index_checked, load_instruction_at_checked,
 };
-use crate::errors::SolMeshError;
+
+const ED25519_PROGRAM_ID: Pubkey = pubkey!("Ed25519SigVerify111111111111111111111111111");
 
 const PUBKEY_SIZE: usize = 32;
 const SIG_SIZE: usize = 64;
-const HEADER: usize = 2;            // num_signatures (u8) + padding (u8)
-const OFFSETS_SIZE: usize = 14;     // one Ed25519SignatureOffsets struct
-const SENTINEL: u16 = u16::MAX;     // "this instruction"
+const HEADER: usize = 2; // num_signatures (u8) + padding (u8)
+const OFFSETS_SIZE: usize = 14; // one Ed25519SignatureOffsets struct
+const SENTINEL: u16 = u16::MAX; // "this instruction"
 
 /// Scan the transaction for a self-contained ed25519 instruction that binds
 /// `expected_pubkey` to `expected_msg`. Returns Ok(()) if found.
@@ -39,7 +40,7 @@ pub fn verify_ed25519_signature(
             Ok(ix) => ix,
             Err(_) => continue,
         };
-        if ix.program_id != ed25519_program::ID {
+        if ix.program_id != ED25519_PROGRAM_ID {
             continue;
         }
         if check_ed25519_data(&ix.data, expected_pubkey, expected_msg).is_ok() {
@@ -56,7 +57,10 @@ fn read_u16(data: &[u8], at: usize) -> Result<u16> {
 
 /// Parse one self-contained signature entry and compare pubkey + message.
 fn check_ed25519_data(data: &[u8], pk: &[u8; 32], msg: &[u8]) -> Result<()> {
-    require!(data.len() >= HEADER + OFFSETS_SIZE, SolMeshError::Ed25519IxMissing);
+    require!(
+        data.len() >= HEADER + OFFSETS_SIZE,
+        SolMeshError::Ed25519IxMissing
+    );
     let num_sigs = data[0];
     require!(num_sigs >= 1, SolMeshError::Ed25519IxMissing);
 
@@ -76,15 +80,30 @@ fn check_ed25519_data(data: &[u8], pk: &[u8; 32], msg: &[u8]) -> Result<()> {
     );
 
     // Bounds.
-    require!(pk_offset + PUBKEY_SIZE <= data.len(), SolMeshError::Ed25519IxMissing);
-    require!(sig_offset + SIG_SIZE <= data.len(), SolMeshError::Ed25519IxMissing);
-    require!(msg_offset + msg_size <= data.len(), SolMeshError::Ed25519IxMissing);
+    require!(
+        pk_offset + PUBKEY_SIZE <= data.len(),
+        SolMeshError::Ed25519IxMissing
+    );
+    require!(
+        sig_offset + SIG_SIZE <= data.len(),
+        SolMeshError::Ed25519IxMissing
+    );
+    require!(
+        msg_offset + msg_size <= data.len(),
+        SolMeshError::Ed25519IxMissing
+    );
 
     // Compare pubkey.
-    require!(&data[pk_offset..pk_offset + PUBKEY_SIZE] == pk, SolMeshError::Ed25519PubkeyMismatch);
+    require!(
+        &data[pk_offset..pk_offset + PUBKEY_SIZE] == pk,
+        SolMeshError::Ed25519PubkeyMismatch
+    );
     // Compare message bytes exactly (length + content).
     require!(msg_size == msg.len(), SolMeshError::Ed25519MessageMismatch);
-    require!(&data[msg_offset..msg_offset + msg_size] == msg, SolMeshError::Ed25519MessageMismatch);
+    require!(
+        &data[msg_offset..msg_offset + msg_size] == msg,
+        SolMeshError::Ed25519MessageMismatch
+    );
 
     Ok(())
 }
