@@ -120,16 +120,16 @@ pub fn open_session_spl_handler(
 #[derive(Accounts)]
 pub struct SettleSpl<'info> {
     #[account(seeds = [CONFIG_SEED], bump = config.bump)]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
     #[account(mut, seeds = [NODE_SEED, node.asset.as_ref()], bump = node.bump)]
-    pub node: Account<'info, Node>,
+    pub node: Box<Account<'info, Node>>,
     #[account(
         mut,
         has_one = node, has_one = provider, has_one = consumer,
         seeds = [SESSION_SEED, session.node.as_ref(), session.consumer.as_ref(), &session.session_seed.to_le_bytes()],
         bump = session.bump,
     )]
-    pub session: Account<'info, Session>,
+    pub session: Box<Account<'info, Session>>,
     /// CHECK: validated by has_one.
     pub provider: UncheckedAccount<'info>,
     /// CHECK: validated by has_one.
@@ -141,14 +141,14 @@ pub struct SettleSpl<'info> {
     #[account(seeds = [VAULT_SEED, session.key().as_ref()], bump)]
     pub vault_authority: UncheckedAccount<'info>,
     #[account(mut)]
-    pub vault_token: Account<'info, TokenAccount>,
+    pub vault_token: Box<Account<'info, TokenAccount>>,
     #[account(mut, constraint = provider_token.owner == provider.key() @ SolMeshError::Unauthorized)]
-    pub provider_token: Account<'info, TokenAccount>,
+    pub provider_token: Box<Account<'info, TokenAccount>>,
     #[account(mut, constraint = consumer_token.owner == consumer.key() @ SolMeshError::Unauthorized)]
-    pub consumer_token: Account<'info, TokenAccount>,
+    pub consumer_token: Box<Account<'info, TokenAccount>>,
     /// Fee destination token account, owned by the protocol fee vault PDA.
     #[account(mut, constraint = fee_token.owner == config.fee_vault @ SolMeshError::Unauthorized)]
-    pub fee_token: Account<'info, TokenAccount>,
+    pub fee_token: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     /// CHECK: equals config.mpl_core_program.
@@ -169,12 +169,13 @@ pub fn checkpoint_spl_handler(ctx: Context<SettleSpl>, state: StateUpdate) -> Re
 }
 
 fn apply_state_spl(ctx: Context<SettleSpl>, state: &StateUpdate, is_checkpoint: bool) -> Result<()> {
+    let session_key = ctx.accounts.session.key();
     {
         let s = &ctx.accounts.session;
         require!(s.status == SessionStatus::Open, SolMeshError::SessionNotOpen);
         require!(s.mint.is_some(), SolMeshError::SplUnsupported);
         require!(state.nonce > s.last_nonce, SolMeshError::StaleNonce);
-        verify_cosigned_state(s, state, &ctx.accounts.instructions_sysvar.to_account_info())?;
+        verify_cosigned_state(s, &session_key, state, &ctx.accounts.instructions_sysvar.to_account_info())?;
     }
 
     let payout_delta = state
@@ -183,13 +184,10 @@ fn apply_state_spl(ctx: Context<SettleSpl>, state: &StateUpdate, is_checkpoint: 
         .ok_or(SolMeshError::OwedDecreased)?;
     let fee = fee_for(payout_delta, ctx.accounts.config.fee_bps)?;
     let provider_amount = payout_delta.checked_sub(fee).ok_or(SolMeshError::MathOverflow)?;
-
-    let session_key = ctx.accounts.session.key();
     let vault_bump = ctx.accounts.session.vault_bump;
     transfer_from_vault(&ctx.accounts.token_program, &ctx.accounts.vault_token, &ctx.accounts.provider_token, &ctx.accounts.vault_authority.to_account_info(), session_key, vault_bump, provider_amount)?;
     transfer_from_vault(&ctx.accounts.token_program, &ctx.accounts.vault_token, &ctx.accounts.fee_token, &ctx.accounts.vault_authority.to_account_info(), session_key, vault_bump, fee)?;
 
-    // Reputation update (shared).
     let node_asset = ctx.accounts.node.asset;
     let node_bump = ctx.accounts.node.bump;
     let new_units = ctx.accounts.node.total_units
@@ -197,15 +195,10 @@ fn apply_state_spl(ctx: Context<SettleSpl>, state: &StateUpdate, is_checkpoint: 
         .ok_or(SolMeshError::MathOverflow)?;
     let new_rep = ctx.accounts.node.reputation.saturating_add(reputation_reward(state.units_consumed));
     let (cap, geo) = (ctx.accounts.node.capacity, ctx.accounts.node.geo.clone());
-    let seeds: &[&[&[u8]]] = &[&[NODE_SEED, node_asset.as_ref(), &[node_bump]]];
-    set_reputation(
-        &ctx.accounts.mpl_core_program.to_account_info(),
-        &ctx.accounts.asset.to_account_info(),
-        &ctx.accounts.payer.to_account_info(),
-        &ctx.accounts.node.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        cap, geo, new_rep, new_units, seeds,
-    )?;
+    
+    // ponytail: mpl-core 0.12.1 UpdatePluginV1 CPI causes lamport imbalance.
+    // Save to Node account only; Core asset sync deferred.
+    let _ = (cap, geo, node_bump, node_asset);
 
     if !is_checkpoint {
         let remainder = ctx.accounts.session.deposited.checked_sub(state.owed_to_provider).ok_or(SolMeshError::MathOverflow)?;
@@ -235,16 +228,16 @@ fn apply_state_spl(ctx: Context<SettleSpl>, state: &StateUpdate, is_checkpoint: 
 #[derive(Accounts)]
 pub struct FinalizeCloseSpl<'info> {
     #[account(seeds = [CONFIG_SEED], bump = config.bump)]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
     #[account(mut, seeds = [NODE_SEED, node.asset.as_ref()], bump = node.bump)]
-    pub node: Account<'info, Node>,
+    pub node: Box<Account<'info, Node>>,
     #[account(
         mut,
         has_one = node, has_one = provider, has_one = consumer,
         seeds = [SESSION_SEED, session.node.as_ref(), session.consumer.as_ref(), &session.session_seed.to_le_bytes()],
         bump = session.bump,
     )]
-    pub session: Account<'info, Session>,
+    pub session: Box<Account<'info, Session>>,
     /// CHECK: validated by has_one.
     pub provider: UncheckedAccount<'info>,
     /// CHECK: validated by has_one.
@@ -256,13 +249,13 @@ pub struct FinalizeCloseSpl<'info> {
     #[account(seeds = [VAULT_SEED, session.key().as_ref()], bump)]
     pub vault_authority: UncheckedAccount<'info>,
     #[account(mut)]
-    pub vault_token: Account<'info, TokenAccount>,
+    pub vault_token: Box<Account<'info, TokenAccount>>,
     #[account(mut, constraint = provider_token.owner == provider.key() @ SolMeshError::Unauthorized)]
-    pub provider_token: Account<'info, TokenAccount>,
+    pub provider_token: Box<Account<'info, TokenAccount>>,
     #[account(mut, constraint = consumer_token.owner == consumer.key() @ SolMeshError::Unauthorized)]
-    pub consumer_token: Account<'info, TokenAccount>,
+    pub consumer_token: Box<Account<'info, TokenAccount>>,
     #[account(mut, constraint = fee_token.owner == config.fee_vault @ SolMeshError::Unauthorized)]
-    pub fee_token: Account<'info, TokenAccount>,
+    pub fee_token: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     /// CHECK: equals config.mpl_core_program.
@@ -296,15 +289,10 @@ pub fn finalize_close_spl_handler(ctx: Context<FinalizeCloseSpl>) -> Result<()> 
     let new_units = ctx.accounts.node.total_units.checked_add(units).ok_or(SolMeshError::MathOverflow)?;
     let new_rep = ctx.accounts.node.reputation.saturating_add(reputation_reward(units));
     let (cap, geo) = (ctx.accounts.node.capacity, ctx.accounts.node.geo.clone());
-    let seeds: &[&[&[u8]]] = &[&[NODE_SEED, node_asset.as_ref(), &[node_bump]]];
-    set_reputation(
-        &ctx.accounts.mpl_core_program.to_account_info(),
-        &ctx.accounts.asset.to_account_info(),
-        &ctx.accounts.payer.to_account_info(),
-        &ctx.accounts.node.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        cap, geo, new_rep, new_units, seeds,
-    )?;
+
+    // ponytail: mpl-core 0.12.1 UpdatePluginV1 CPI causes lamport imbalance.
+    // Save to Node account only; Core asset sync deferred.
+    let _ = (cap, geo, node_bump, node_asset);
 
     let remainder = ctx.accounts.session.deposited.checked_sub(owed).ok_or(SolMeshError::MathOverflow)?;
     transfer_from_vault(&ctx.accounts.token_program, &ctx.accounts.vault_token, &ctx.accounts.consumer_token, &ctx.accounts.vault_authority.to_account_info(), session_key, vault_bump, remainder)?;
