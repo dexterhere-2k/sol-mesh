@@ -1,4 +1,4 @@
-# SolMesh — DePIN State Settler
+# SolMesh
 
 State-efficient settlement for micro-compute / storage / bandwidth networks on Solana.
 Resource usage is metered **off-chain** via signed state channels; only **3 transactions
@@ -30,37 +30,39 @@ flowchart TB
     end
 
     subgraph SHARED["SHARED SCHEMA"]
-        ST[<b>solmesh-state</b> crate<br/>StateUpdate{domain, session, nonce,<br/>owed_to_provider, units_consumed, timestamp}<br/>Rust and TypeScript golden-bytes parity]
+        ST[<b>solmesh-state</b> crate<br/>StateUpdate: domain, session, nonce,<br/>owed_to_provider, units_consumed, timestamp<br/>Rust and TypeScript golden-bytes parity]
     end
 
     subgraph ONCHAIN["ON-CHAIN SOLANA SBF PROGRAM"]
-        subgraph INSTRUCTIONS["23 Instructions"]
-            IC[initialize_config]
-            RN[register_node<br/>mints Core NFT]
-            OS[open_session / open_session_spl<br/>locks SOL or USDC into escrow]
-            STL[settle_session / checkpoint_settle<br/>verify 2x ed25519, split escrow + fee]
-            DS[initiate_unilateral_close / challenge<br/>highest co-signed nonce wins]
-            FC[finalize_close / finalize_close_spl<br/>distribute escrow + refund consumer]
-            LC[cancel_session / expire_session<br/>refund lifecycle]
-            AD[update_config / withdraw_fees / update_node_meta]
-        end
-
-        subgraph PDAS["3 PDAs"]
-            CFG[Config PDA<br/>singleton: fee_bps, challenge_window,<br/>mpl_core_program, paused]
-            NOD[Node PDA<br/>per provider: asset, provider, capacity,<br/>geo, reputation, total_units, active]
-            SES[Session PDA<br/>per channel: node, asset, provider, consumer,<br/>mint, deposited, settled_to_provider,<br/>last_nonce, status, vault_bump]
-        end
-
-        subgraph SECURITY["SECURITY LAYER"]
-            ED[Ed25519 Verification<br/>Solana runtime precompile verifies curve math<br/>SolMesh introspects instructions-sysvar<br/>to prove binding: both sigs on same 72 bytes<br/>Self-contained only: no cross-ix references<br/>Domain-separated: SOLMESH1 prefix]
-            CPI[mpl-core CPI<br/>CreateV1: mint Core NFT with Attributes plugin<br/>UpdatePluginV1: refresh reputation<br/>deferred: lamport imbalance in 0.12.1]
-        end
+        IC[initialize_config: singleton Config PDA]
+        RN[register_node: mints Core NFT, creates Node PDA]
+        OS[open_session / open_session_spl]
+        STL[settle_session / checkpoint_settle]
+        DS[initiate_unilateral_close / challenge]
+        FC[finalize_close / finalize_close_spl]
+        LC[cancel_session / expire_session]
+        AD[update_config / withdraw_fees / update_node_meta]
+        CFG[(Config PDA)]
+        NOD[(Node PDA)]
+        SES[(Session PDA)]
+        ED[Ed25519 Verification<br/>runtime precompile + instructions-sysvar]
+        CPI[mpl-core CPI<br/>CreateV1 + UpdatePluginV1]
     end
 
-    OFF --> SHARED
-    SHARED --> INSTRUCTIONS
-    INSTRUCTIONS --> PDAS
-    PDAS --> SECURITY
+    SU --> ST
+    ST --> OS
+    IC --> RN --> OS
+    OS --> SES
+    OS --> |SOL|STL
+    OS --> |SPL|STL
+    STL --> FC
+    STL --> DS
+    DS --> FC
+    FC --> NOD
+    STL --> NOD
+    RN --> CPI
+    NOD --> ED
+    SES --> ED
 ```
 
 ### Asset Paths
